@@ -1,0 +1,199 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Patron {
+  patronId         Int    @id @default(autoincrement())
+  patronEmail        String   @unique
+  patronPassword     String   
+  patronFirstName    String
+  patronLastName     String
+  
+  isStudent          Boolean  @default(false)
+  isFaculty          Boolean  @default(false)
+
+  patronCreatedAt    DateTime @default(now())
+  patronUpdatedAt    DateTime @updatedAt
+
+  studentProfile     Student?
+  facultyProfile     Faculty?
+
+  // Relations to borrowing and reservation history
+  borrowedItems      Transaction[]
+  reservations       Reservation[]
+  borrowRequests     BorrowRequest[]
+}
+
+
+model Admin {
+  adminId       Int    @id @default(autoincrement())
+  updatedSettings LibrarySettings[]
+  adminEmail    String   @unique
+  adminPassword String
+  adminFirstName String
+  adminLastName  String
+
+}
+
+
+model Librarian {
+  librarianId       Int    @id @default(autoincrement())
+  librarianEmail    String   @unique
+  librarianPassword String
+  librarianFirstName String
+  librarianLastName  String
+  
+  processedRequests  BorrowRequest[]
+}
+
+model Student {
+  studentId                 Int    @id @default(autoincrement())
+  studentDepartment         String?
+  studentSemester           Int?
+  studentRollNo             Int?
+  studentEnrollmentNumber   Int?   @unique
+
+  patron                      Patron @relation(fields: [patronId], references: [patronId])
+  patronId                    Int @unique
+}
+
+model Faculty {
+  facultyId                 Int    @id @default(autoincrement())
+  facultyDepartment         String?
+
+  patron                      Patron @relation(fields: [patronId], references: [patronId])
+  patronId                    Int @unique
+}
+
+enum ItemType {
+  BOOK
+  JOURNAL
+  MULTIMEDIA
+  MAGAZINE
+  DVD
+  CD
+  EBOOK
+  AUDIOBOOK
+}
+
+enum ItemStatus {
+  AVAILABLE
+  BORROWED
+  RESERVED
+  LOST
+  DAMAGED
+  MAINTENANCE
+}
+
+model Item {
+  itemId           Int         @id @default(autoincrement())
+  title            String
+  author           String
+  isbn             String?     @unique
+  subject          String?
+  keywords         String?
+  description      String?     @db.Text
+  itemType         ItemType
+  status           ItemStatus  @default(AVAILABLE)
+  price            Float
+  imageUrl         String?
+  publisher        String?
+  publicationYear  Int?
+  language         String?     @default("English")
+  totalCopies      Int         @default(1)
+  availableCopies  Int         @default(1)
+  isVisible        Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  transactions Transaction[]
+  reservations Reservation[]
+  borrowRequests BorrowRequest[]
+}
+
+model Transaction {
+  transactionId Int    @id @default(autoincrement())
+  borrowedAt    DateTime  @default(now())
+  returnedAt    DateTime?
+  dueDate       DateTime
+  isReturned    Boolean   @default(false)
+  finePaid      Float?
+
+  item          Item      @relation(fields: [itemId], references: [itemId])
+  itemId        Int
+
+  patron        Patron    @relation(fields: [patronId], references: [patronId])
+  patronId      Int
+}
+
+model Reservation {
+  reservationId  Int    @id @default(autoincrement())
+  reservedAt     DateTime  @default(now())
+  
+  // Relation to Item
+  item           Item      @relation(fields: [itemId], references: [itemId])
+  itemId         Int
+
+  patron         Patron    @relation(fields: [patronId], references: [patronId])
+  patronId       Int
+
+  @@unique([itemId, patronId])
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum RequestType {
+  BORROW
+  RESERVE
+}
+
+model BorrowRequest {
+  requestId      Int    @id @default(autoincrement())
+  requestType    RequestType
+  status         RequestStatus @default(PENDING)
+  requestedAt    DateTime  @default(now())
+  processedAt    DateTime?
+  notes          String?   @db.Text
+  
+  // Relation to Item
+  item           Item      @relation(fields: [itemId], references: [itemId])
+  itemId         Int
+
+  // Relation to Patron
+  patron         Patron    @relation(fields: [patronId], references: [patronId])
+  patronId       Int
+
+  // Relation to Librarian who processed the request
+  processedBy    Librarian? @relation(fields: [librarianId], references: [librarianId])
+  librarianId    Int?
+}
+
+model LibrarySettings {
+  librarySettingsId   Int      @id @default(1)
+  borrowingLimit      Int      @default(5)
+  loanPeriodDays      Int      @default(14)
+  finePerDay          Float    @default(1.0)
+  updatedAt           DateTime @updatedAt
+
+  // Relation to the Admin who last updated the settings
+  updatedBy           Admin?   @relation(fields: [updatedByAdminId], references: [adminId])
+  updatedByAdminId    Int?
+}
+
